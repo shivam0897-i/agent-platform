@@ -1,0 +1,17 @@
+# =============================================================================
+# Document Agent Configuration
+# =============================================================================
+# Non-sensitive settings. Secrets go in .env
+
+# Agent Identity
+AGENT_NAME: Document Processing Agent
+AGENT_DESCRIPTION: AI agent for processing and extracting data from documents
+
+# LLM Configuration
+DEFAULT_LLM_MODEL: gemini/gemini-2.0-flash
+DEFAULT_VISION_MODEL: gemini/gemini-2.0-flash
+LLM_TEMPERATURE: 0.1
+LLM_MAX_TOKENS: 4096
+
+# External Services (optional)
+# TEXT_EXTRACTION_URL: https://your-extraction-service.hf.space/api/text

@@ -1,0 +1,14 @@
+# Document Processing Agent Dependencies
+# Install: pip install -r requirements.txt
+
+# Platform (install from parent directory or PyPI)
+# pip install -e ../point9_platform or pip install point9-platform
+
+# FastAPI
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Additional agent-specific dependencies can be added below
+# requests>=2.31.0
+# httpx>=0.25.0
