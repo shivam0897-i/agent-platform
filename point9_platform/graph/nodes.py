@@ -132,6 +132,9 @@ def create_default_executor(llm, tool_registry) -> Callable:
                 tool_choice="auto" if tools else None
             )
             
+            if not response or not hasattr(response, 'choices') or not response.choices:
+                raise ValueError(f"LLM returned invalid response: {response}")
+            
             assistant_msg = response.choices[0].message
             tool_calls = getattr(assistant_msg, "tool_calls", None)
             
@@ -151,8 +154,12 @@ def create_default_executor(llm, tool_registry) -> Callable:
                         emitter=emitter
                     )
                     
+                    # Store result by document_id if present, otherwise by tool_name
                     if "document_id" in tool_result:
                         results[tool_result["document_id"]] = tool_result
+                    else:
+                        # Fallback: store by tool name
+                        results[tool_name] = tool_result
                     
                     new_messages.append({
                         "role": "tool",

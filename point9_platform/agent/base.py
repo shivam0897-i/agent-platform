@@ -154,6 +154,12 @@ class BaseAgent(ABC, Generic[StateT]):
         state = self.create_initial_state(self.session_id)
         state["messages"] = [{"role": "user", "content": message}]
         
+        # Merge any custom initial_state passed in kwargs
+        initial_state = kwargs.pop("initial_state", None)
+        if initial_state:
+            state.update(initial_state)
+            logger.debug(f"Merged initial_state keys: {list(initial_state.keys())}")
+        
         if documents:
             state["documents"] = documents
         
@@ -202,8 +208,24 @@ class BaseAgent(ABC, Generic[StateT]):
             planner=self.create_planner_node(),
             executor=self.create_executor_node(),
             reflector=self.create_reflector_node(),
-            responder=self.create_responder_node()
+            responder=self.create_responder_node(),
+            state_class=self.get_state_class()
         )
+    
+    def get_state_class(self):
+        """
+        Return the TypedDict class for state.
+        
+        Override this to return your custom state class.
+        This ensures LangGraph sees Annotated reducers.
+        """
+        # Try to infer from type hints
+        from typing import get_type_hints
+        try:
+            hints = get_type_hints(self.create_initial_state)
+            return hints.get('return', dict)
+        except:
+            return dict
     
     # =========================================================================
     # NODE FACTORIES - OVERRIDE FOR CUSTOM BEHAVIOR

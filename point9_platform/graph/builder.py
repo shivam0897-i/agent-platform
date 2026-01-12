@@ -17,7 +17,8 @@ def build_default_graph(
     planner: Callable,
     executor: Callable,
     reflector: Callable,
-    responder: Callable
+    responder: Callable,
+    state_class: Type = None
 ):
     """
     Build the default LangGraph workflow.
@@ -30,13 +31,22 @@ def build_default_graph(
         executor: Executor node function
         reflector: Reflector node function
         responder: Responder node function
+        state_class: Optional TypedDict class for state (recommended)
         
     Returns:
         Compiled LangGraph application
     """
-    # Get state class from agent
-    sample_state = agent.create_initial_state(agent.session_id)
-    state_class = type(sample_state)
+    # Get state class - prefer explicit class over type inference
+    # type(dict_instance) returns 'dict', not the TypedDict!
+    if state_class is None:
+        # Try to get from agent's type hints
+        import inspect
+        from typing import get_type_hints
+        try:
+            hints = get_type_hints(agent.create_initial_state)
+            state_class = hints.get('return', dict)
+        except:
+            state_class = dict
     
     # Create the state graph
     workflow = StateGraph(state_class)
