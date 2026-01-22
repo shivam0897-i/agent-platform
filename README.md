@@ -632,6 +632,69 @@ func = registry.get_function("extract_invoice_data")
 names = registry.get_all_names()  # ["extract_invoice_data", "validate_data"]
 ```
 
+### Storage (S3 & MongoDB)
+
+Reusable storage utilities for files and session state.
+
+**Install storage dependencies:**
+```bash
+pip install point9-agent-platform[storage]
+# or: pip install boto3 pymongo
+```
+
+**S3Storage — File Storage:**
+```python
+from point9_platform.storage import S3Storage, get_s3_storage
+
+s3 = get_s3_storage()
+
+# Upload
+s3.upload_file("local.pdf", "inputs/session-123/doc.pdf")
+s3.upload_json({"results": data}, "outputs/session-123/results.json")
+
+# Download
+s3.download_file("inputs/doc.pdf", "/tmp/doc.pdf")
+
+# Presigned URL (for frontend)
+url = s3.get_presigned_url("outputs/report.pdf", expiration=3600)
+```
+
+**MongoStore — Session State:**
+```python
+from point9_platform.storage import MongoStore, get_mongo_store
+
+store = get_mongo_store()
+
+# Session management
+store.create_session("session-123", input_files=[...])
+store.update_status("session-123", "processing")
+store.set_output("session-123", "s3://bucket/output.json")
+
+# Logging
+store.add_log("session-123", "extraction", "Extracted 5 fields")
+
+# Intermediate results
+store.store_result("session-123", "analyze_image", {"defects": [...]})
+
+# Chat history
+store.add_message("session-123", "user", "Process this document")
+history = store.get_chat_history("session-123")
+```
+
+**Environment Variables:**
+```env
+# S3
+S3_BUCKET_NAME=my-bucket
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB=point9_agent
+MONGODB_COLLECTION=sessions
+```
+
 ---
 
 ## Creating Tools

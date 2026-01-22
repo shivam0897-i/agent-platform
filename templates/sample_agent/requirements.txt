@@ -10,5 +10,7 @@ uvicorn>=0.24.0
 python-multipart>=0.0.6
 
 # Additional agent-specific dependencies can be added below
-# requests>=2.31.0
-# httpx>=0.25.0
+# Storage (optional)
+# boto3>=1.28.0
+# pymongo>=4.5.0
+
