@@ -59,8 +59,12 @@ class ColoredFormatter(logging.Formatter):
         # Format timestamp
         timestamp = self.formatTime(record, "%H:%M:%S")
 
-        # Shorten logger name
-        name = record.name.split(".")[-1][:15].ljust(15)
+        # Shorten logger name (use first part for known third-party loggers)
+        name_parts = record.name.split(".")
+        if name_parts[0] in ("uvicorn", "httpx", "httpcore"):
+            name = name_parts[0][:15].ljust(15)
+        else:
+            name = name_parts[-1][:15].ljust(15)
 
         # Format level
         level = record.levelname[:5].ljust(5)
