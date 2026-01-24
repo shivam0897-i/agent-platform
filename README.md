@@ -697,6 +697,41 @@ MONGODB_COLLECTION=sessions
 
 ---
 
+### Logging
+
+Consistent, color-coded logging for all agents.
+
+**Setup (in your main.py or app startup):**
+```python
+from point9_platform.observability import setup_logging, get_logger
+
+# Configure at app start
+setup_logging(
+    level="INFO",           # DEBUG, INFO, WARNING, ERROR
+    agent_name="my_agent",  # Prefix for all loggers
+    filter_noise=True       # Suppress noisy third-party logs
+)
+```
+
+**Usage (in any module):**
+```python
+from point9_platform.observability import get_logger
+
+logger = get_logger("tools")
+logger.info("Processing document")
+logger.warning("Missing field")
+logger.error("Validation failed")
+```
+
+**Output:**
+```
+17:54:44 │ INFO  │ tools           │ Processing document
+17:54:44 │ WARN  │ tools           │ Missing field
+17:54:44 │ ERROR │ tools           │ Validation failed
+```
+
+---
+
 ## Creating Tools
 
 ### Step 1: Create File
