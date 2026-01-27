@@ -29,8 +29,21 @@ def create_default_planner(llm, planner_prompt: str = None) -> Callable:
         messages = state.get("messages", [])
         session_id = state.get("session_id", "")
         
-        # Build planning prompt
-        system_prompt = planner_prompt or _get_default_planner_prompt()
+        # Build planning prompt with document context
+        base_prompt = planner_prompt or _get_default_planner_prompt()
+        
+        # Add document context to system prompt (generic for all agents)
+        documents = state.get("documents", {})
+        doc_context = ""
+        if documents:
+            doc_context = "\n\nUPLOADED FILES:\n"
+            for doc_id, info in documents.items():
+                file_type = info.get('type', 'unknown')
+                filename = info.get('filename', 'unknown')
+                doc_context += f"- {filename} (type: {file_type})\n"
+            doc_context += "\nYou MUST include steps to process ALL uploaded files using appropriate tools."
+        
+        system_prompt = base_prompt + doc_context
         
         # Prepare messages for LLM
         llm_messages = [
@@ -111,11 +124,19 @@ def create_default_executor(llm, tool_registry) -> Callable:
         
         current_task = plan[current_step]
         
+        # Get documents context for executor
+        documents = state.get("documents", {})
+        doc_context = ""
+        if documents:
+            doc_context = "\n\nAvailable documents:\n"
+            for doc_id, info in documents.items():
+                doc_context += f"- {doc_id}: {info.get('filename', 'unknown')} (type: {info.get('type', 'unknown')})\n"
+        
         # Get tool definitions
         tool_executor = ToolExecutor(state, tool_registry)
         tools = tool_executor.get_tool_definitions()
         
-        exec_prompt = _get_default_executor_prompt(current_task, current_step + 1, len(plan))
+        exec_prompt = _get_default_executor_prompt(current_task, current_step + 1, len(plan)) + doc_context
         
         exec_messages = [
             {"role": "system", "content": exec_prompt},
@@ -267,6 +288,9 @@ def create_default_responder(llm, responder_prompt: str = None) -> Callable:
                 messages=resp_messages,
                 model=state.get("model")
             )
+            # Safety check for empty choices
+            if not response or not hasattr(response, 'choices') or not response.choices:
+                raise ValueError("LLM returned empty response")
             final_response = response.choices[0].message.content
             
         except Exception as e:
