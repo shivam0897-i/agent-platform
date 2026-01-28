@@ -2,46 +2,151 @@
 
 **Version 1.0.0**
 
-A foundation platform for building production-ready AI agents with LangGraph.
+A Python SDK for building production-ready AI agents with LangGraph.
+
+---
+
+## What is Point9 Agent Platform?
+
+Point9 Agent Platform is a **reusable foundation** for building AI agents. Instead of writing LangGraph workflows, tool systems, and infrastructure from scratch, you extend a base class and focus only on your domain-specific logic.
+
+### The Problem It Solves
+
+Building an AI agent typically requires:
+- Setting up LangGraph with nodes, edges, and state management
+- Creating a tool registration and execution system
+- Handling LLM provider switching
+- Implementing retry logic, error handling, logging
+- Building SSE streaming for real-time progress
+- Managing session state and conversation memory
+
+**This is 2,000+ lines of boilerplate—repeated for every agent.**
+
+### The Solution
+
+Point9 provides all of this out-of-the-box. You only write:
+
+```python
+from point9_platform import BaseAgent, tool
+
+class MyAgent(BaseAgent[MyState]):
+    def get_agent_name(self) -> str:
+        return "my_agent"
+    
+    def create_initial_state(self, session_id: str) -> MyState:
+        return MyState(session_id=session_id, ...)
+
+@tool(name="my_tool", description="...")
+def my_tool(data: str, state: dict) -> dict:
+    return {"result": "..."}
+```
+
+**~100 lines instead of 2,000+.**
+
+---
+
+## Key Features
+
+| Feature | What It Does |
+|---------|--------------|
+| **BaseAgent** | Abstract class with full LangGraph workflow (Plan → Execute → Reflect → Respond) |
+| **@tool decorator** | Register any function as an agent tool with auto-generated JSON schema |
+| **ToolRegistry** | Auto-discovers tools from your `tools/` package |
+| **LLMProvider** | Unified interface to OpenAI, Gemini, Claude, Groq, Mistral (via LiteLLM) |
+| **S3Storage** | Upload/download files to S3 (images, PDFs, reports) |
+| **MongoStore** | Persist session state, logs, chat history to MongoDB |
+| **StepEmitter** | Real-time SSE streaming of agent progress to frontend |
+| **Colored Logging** | Consistent, noise-filtered console output |
+| **Health Endpoints** | Pre-built `/health` and `/ready` routes |
+
+---
+
+## When to Use This Platform
+
+| ✅ Use When | ❌ Don't Use When |
+|-------------|-------------------|
+| Building multi-step AI workflows | Simple single-prompt LLM calls |
+| Need tool/function calling | Just need chat completion |
+| Want consistent agent architecture | One-off scripts |
+| Multiple agents sharing patterns | Highly custom graph structures |
+| Production deployment required | Quick prototypes |
 
 ---
 
 ## Table of Contents
 
-1. [Installation](#installation)
-2. [Quick Start](#quick-start)
-3. [Platform Architecture](#platform-architecture)
-4. [Creating an Agent](#creating-an-agent)
-5. [Agent Structure](#agent-structure)
-6. [Core Components](#core-components)
-7. [Creating Tools](#creating-tools)
-8. [Configuration](#configuration)
-9. [API Endpoints](#api-endpoints)
-10. [Multi-turn Chat](#multi-turn-chat)
-11. [Progress Streaming](#progress-streaming)
-12. [Deployment](#deployment)
-13. [Examples](#examples)
+1. [What is Point9 Agent Platform?](#what-is-point9-agent-platform)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Your First Agent (Tutorial)](#your-first-agent-tutorial)
+5. [Platform Architecture](#platform-architecture)
+6. [Creating an Agent](#creating-an-agent)
+7. [Agent Structure](#agent-structure)
+8. [Core Components](#core-components)
+9. [Creating Tools](#creating-tools)
+10. [Configuration](#configuration)
+11. [API Endpoints](#api-endpoints)
+12. [Multi-turn Chat](#multi-turn-chat)
+13. [Progress Streaming](#progress-streaming)
+14. [Deployment](#deployment)
+15. [Troubleshooting / FAQ](#troubleshooting--faq)
+16. [Examples](#examples)
 
 ---
 
 ## Installation
 
+### From Private GitHub Repository
+
+**Option 1: Using SSH (if you have SSH keys configured)**
+```bash
+pip install git+ssh://git@github.com/shivam0897-i/agent-platform.git
+```
+
+**Option 2: Using Personal Access Token (PAT)**
+```bash
+# Replace <YOUR_PAT> with your GitHub Personal Access Token
+pip install git+https://<YOUR_PAT>@github.com/shivam0897-i/agent-platform.git
+```
+
+**Option 3: In requirements.txt**
+```txt
+# Using PAT (replace <YOUR_PAT>)
+point9-agent-platform @ git+https://<YOUR_PAT>@github.com/shivam0897-i/agent-platform.git
+
+# Or using SSH
+point9-agent-platform @ git+ssh://git@github.com/shivam0897-i/agent-platform.git
+```
+
 ### For Development (Editable Install)
 
 ```bash
-cd point9-agent-platform
+git clone https://github.com/shivam0897-i/agent-platform.git
+cd agent-platform
 pip install -e .
 ```
 
-### For Production
+### With Optional Dependencies
 
 ```bash
-# From Git
-pip install git+https://github.com/your-org/point9-agent-platform.git
+# With storage utilities (S3 + MongoDB)
+pip install "point9-agent-platform[storage] @ git+https://..."
 
-# Or from PyPI (if published)
-pip install point9-agent-platform
+# With development tools
+pip install "point9-agent-platform[dev] @ git+https://..."
 ```
+
+### What Gets Installed
+
+| Package | Purpose |
+|---------|---------|
+| `langgraph` | Workflow orchestration |
+| `litellm` | Multi-provider LLM interface |
+| `fastapi` | API framework |
+| `pydantic` | Data validation |
+| `pyyaml` | Config file parsing |
+| `boto3` *(optional)* | S3 storage |
+| `pymongo` *(optional)* | MongoDB storage |
 
 ### Verify Installation
 
@@ -91,6 +196,438 @@ uvicorn api.main:app --reload --port 8000
 curl -X POST http://localhost:8000/process \
   -H "Content-Type: application/json" \
   -d '{"message": "Process this invoice"}'
+```
+
+---
+
+## Your First Agent (Tutorial)
+
+This tutorial walks you through creating a complete agent from scratch. By the end, you'll have a working **Document Summarizer Agent**.
+
+### Step 1: Create Project Structure
+
+```bash
+mkdir summarizer_agent
+cd summarizer_agent
+mkdir -p api tools prompts
+touch agent.py state.py settings.py requirements.txt .env
+touch api/__init__.py api/main.py
+touch tools/__init__.py tools/summarize.py
+touch prompts/__init__.py prompts/templates.py
+```
+
+Your folder structure:
+```
+summarizer_agent/
+├── agent.py           # Main agent class
+├── state.py           # Agent state definition
+├── settings.py        # Custom settings
+├── requirements.txt   # Dependencies
+├── .env               # API keys
+├── api/
+│   ├── __init__.py
+│   └── main.py        # FastAPI endpoints
+├── tools/
+│   ├── __init__.py
+│   └── summarize.py   # Your tools
+└── prompts/
+    ├── __init__.py
+    └── templates.py   # LLM prompts
+```
+
+### Step 2: Create requirements.txt
+
+```txt
+# Point9 Platform (from private repo)
+point9-agent-platform @ git+https://github.com/shivam0897-i/agent-platform.git
+
+# Web framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Environment management
+python-dotenv>=1.0.0
+```
+
+### Step 3: Create .env
+
+```env
+GEMINI_API_KEY=your-gemini-api-key-here
+```
+
+### Step 4: Create state.py
+
+```python
+"""Agent State Definition"""
+from typing import Dict, Any, List, Optional, Annotated, TypedDict
+from point9_platform.agent.state import message_reducer, DocumentInfo
+
+
+class SummarizerState(TypedDict):
+    """State for the Summarizer Agent."""
+    
+    # === Required fields (from platform) ===
+    messages: Annotated[List[Dict[str, Any]], message_reducer]
+    session_id: str
+    should_continue: bool
+    error: Optional[str]
+    iteration: int
+    max_iterations: int
+    model: str
+    
+    # === Standard fields ===
+    documents: Dict[str, DocumentInfo]
+    results: Dict[str, Any]
+    plan: List[str]
+    current_step: int
+    thoughts: List[str]
+    
+    # === Custom fields for this agent ===
+    summary: Optional[str]
+    word_count: int
+    key_points: List[str]
+```
+
+### Step 5: Create prompts/templates.py
+
+```python
+"""LLM Prompts for Summarizer Agent"""
+
+PLANNER_PROMPT = """You are a document summarization planner.
+
+Given a user request, create a plan to summarize the document.
+
+Respond in JSON:
+{
+    "task_understanding": "What the user wants",
+    "reasoning": "How you'll approach this",
+    "plan": ["Step 1", "Step 2", ...]
+}
+"""
+
+RESPONDER_PROMPT = """You are a helpful assistant that summarizes documents.
+
+Based on the summarization results, provide a clear, helpful response to the user.
+Include the summary and key points in your response.
+"""
+
+PROMPTS = {
+    "planner": PLANNER_PROMPT,
+    "responder": RESPONDER_PROMPT
+}
+```
+
+### Step 6: Create agent.py
+
+```python
+"""Summarizer Agent - Main Agent Class"""
+from typing import Dict, List, Any
+from point9_platform.agent.base import BaseAgent
+from state import SummarizerState
+from settings import SummarizerSettings
+from prompts.templates import PROMPTS
+
+
+class SummarizerAgent(BaseAgent[SummarizerState]):
+    """AI agent for summarizing documents."""
+    
+    def __init__(self, session_id: str):
+        super().__init__(
+            session_id=session_id,
+            tools_package="tools",  # Auto-discovers tools from tools/ folder
+            settings=SummarizerSettings()
+        )
+    
+    # === REQUIRED METHODS ===
+    
+    def get_agent_name(self) -> str:
+        return "summarizer_agent"
+    
+    def get_domain_keywords(self) -> List[str]:
+        return ["summarize", "summary", "document", "text", "analyze", "brief"]
+    
+    def create_initial_state(self, session_id: str) -> SummarizerState:
+        return SummarizerState(
+            messages=[],
+            session_id=session_id,
+            should_continue=True,
+            error=None,
+            iteration=0,
+            max_iterations=10,
+            model=self.settings.DEFAULT_LLM_MODEL,
+            documents={},
+            results={},
+            plan=[],
+            current_step=0,
+            thoughts=[],
+            summary=None,
+            word_count=0,
+            key_points=[]
+        )
+    
+    def get_prompts(self) -> Dict[str, str]:
+        return PROMPTS
+    
+    # === OPTIONAL: Override state class for TypedDict support ===
+    
+    def get_state_class(self):
+        return SummarizerState
+```
+
+### Step 7: Create settings.py
+
+```python
+"""Custom Settings for Summarizer Agent"""
+from point9_platform.settings.user import UserSettings
+
+
+class SummarizerSettings(UserSettings):
+    """Settings for the Summarizer Agent."""
+    
+    # Agent identity
+    AGENT_NAME: str = "Document Summarizer"
+    AGENT_DESCRIPTION: str = "AI agent for summarizing documents and extracting key points"
+    
+    # LLM settings
+    DEFAULT_LLM_MODEL: str = "gemini/gemini-2.0-flash"
+    LLM_TEMPERATURE: float = 0.3
+    
+    # Custom settings
+    MAX_SUMMARY_LENGTH: int = 500
+    EXTRACT_KEY_POINTS: bool = True
+```
+
+### Step 8: Create tools/summarize.py
+
+```python
+"""Summarization Tool"""
+from point9_platform.tools.decorator import tool
+from typing import Dict, Any, List
+
+
+@tool(
+    name="summarize_text",
+    description="Summarize the given text and extract key points"
+)
+def summarize_text(
+    text: str,
+    max_length: int = 500,
+    extract_points: bool = True,
+    state: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Summarize text content.
+    
+    Args:
+        text: The text to summarize
+        max_length: Maximum length of summary in words
+        extract_points: Whether to extract key bullet points
+        state: Agent state (automatically injected)
+    
+    Returns:
+        Dict with summary, word_count, and key_points
+    """
+    # Simple summarization logic (replace with your own)
+    words = text.split()
+    word_count = len(words)
+    
+    # Create summary (first N words as demo)
+    summary_words = words[:min(max_length, len(words))]
+    summary = " ".join(summary_words)
+    if len(words) > max_length:
+        summary += "..."
+    
+    # Extract key points (demo: first 3 sentences)
+    key_points = []
+    if extract_points:
+        sentences = text.split(". ")
+        key_points = [s.strip() + "." for s in sentences[:3] if s.strip()]
+    
+    return {
+        "status": "success",
+        "summary": summary,
+        "word_count": word_count,
+        "key_points": key_points,
+        "original_length": len(text),
+        "summary_length": len(summary)
+    }
+
+
+@tool(
+    name="analyze_document",
+    description="Analyze a document and provide statistics"
+)
+def analyze_document(
+    document_id: str,
+    state: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Analyze an uploaded document.
+    
+    Args:
+        document_id: ID of the uploaded document
+        state: Agent state (automatically injected)
+    
+    Returns:
+        Dict with document statistics
+    """
+    documents = state.get("documents", {})
+    doc = documents.get(document_id)
+    
+    if not doc:
+        return {
+            "status": "failed",
+            "error": f"Document {document_id} not found"
+        }
+    
+    # Get document info
+    filename = doc.get("filename", "unknown")
+    file_type = doc.get("type", "unknown")
+    content = doc.get("content", "")
+    
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "filename": filename,
+        "file_type": file_type,
+        "character_count": len(content),
+        "word_count": len(content.split()),
+        "line_count": len(content.split("\n"))
+    }
+```
+
+### Step 9: Create api/main.py
+
+```python
+"""FastAPI Application"""
+import uuid
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
+
+from point9_platform.health import create_health_router
+from point9_platform.observability.emitter import get_session_emitter
+
+# Import your agent
+import sys
+sys.path.insert(0, "..")
+from agent import SummarizerAgent
+
+
+app = FastAPI(
+    title="Summarizer Agent API",
+    description="AI agent for document summarization",
+    version="1.0.0"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# Health endpoints
+app.include_router(create_health_router())
+
+
+# Request/Response models
+class ProcessRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    documents: Optional[Dict[str, Any]] = None
+
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str
+
+
+# Endpoints
+@app.post("/process")
+async def process(request: ProcessRequest):
+    """Process a summarization request."""
+    session_id = request.session_id or str(uuid.uuid4())
+    
+    try:
+        agent = SummarizerAgent(session_id=session_id)
+        result = agent.process(
+            message=request.message,
+            documents=request.documents
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat")
+async def chat(request: ChatRequest):
+    """Continue a conversation."""
+    try:
+        agent = SummarizerAgent(session_id=request.session_id)
+        result = agent.process(message=request.message)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/stream/{session_id}")
+async def stream(session_id: str):
+    """Stream progress updates via SSE."""
+    emitter = get_session_emitter(session_id)
+    if not emitter:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return StreamingResponse(
+        emitter.stream(),
+        media_type="text/event-stream"
+    )
+```
+
+### Step 10: Run Your Agent
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the server
+cd api
+uvicorn main:app --reload --port 8000
+```
+
+### Step 11: Test Your Agent
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Process a request
+curl -X POST http://localhost:8000/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Please summarize this text: Artificial intelligence is transforming industries worldwide. From healthcare to finance, AI is making processes more efficient and accurate. Machine learning models can now analyze vast amounts of data in seconds."
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Here's your summary: AI is transforming industries...",
+  "results": {
+    "summarize_text": {
+      "status": "success",
+      "summary": "...",
+      "word_count": 35,
+      "key_points": ["..."]
+    }
+  },
+  "session_id": "abc-123"
+}
 ```
 
 ---
@@ -974,29 +1511,287 @@ data: {"step_type": "complete", "message": "Processing complete", "progress": 10
 
 ## Deployment
 
-### Hugging Face Spaces
+### Hugging Face Spaces (With Private Repo)
 
-Each agent deploys to its own Space:
+Since Point9 Platform is a private repository, you need to use a **GitHub Personal Access Token (PAT)** to install it on Hugging Face Spaces.
 
-```
-# app.py (at root)
-from api.main import app
+**Step 1: Create a GitHub PAT**
+1. Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens
+2. Create a new token with `read` access to the `agent-platform` repository
+3. Copy the token
 
-# requirements.txt
-point9-agent-platform @ git+https://github.com/your-org/point9-agent-platform.git
-fastapi>=0.104.0
-uvicorn>=0.24.0
-```
+**Step 2: Add PAT as Hugging Face Secret**
+1. Go to your Space → Settings → Repository secrets
+2. Add a secret named `GITHUB_PAT` with your token value
 
-### Docker
+**Step 3: Create Dockerfile**
 
 ```dockerfile
 FROM python:3.11-slim
+
 WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for caching
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+
+# Build argument for GitHub PAT
+ARG GITHUB_PAT
+
+# Install dependencies (using PAT for private repo)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
+
+# Expose port
+EXPOSE 7860
+
+# Run the application
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]
+```
+
+**Step 4: Create requirements.txt with PAT placeholder**
+
+```txt
+# The ${GITHUB_PAT} will be replaced during Docker build
+point9-agent-platform @ git+https://${GITHUB_PAT}@github.com/shivam0897-i/agent-platform.git
+
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+python-dotenv>=1.0.0
+```
+
+**Step 5: Create Hugging Face Space settings**
+
+In your Space, create a `README.md` with frontmatter:
+
+```yaml
+---
+title: My Agent
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+```
+
+**Step 6: Push and deploy**
+
+The Space will automatically build using the Dockerfile and inject the `GITHUB_PAT` secret.
+
+### Docker (Local/Self-Hosted)
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install git for private repo access
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Expose port
+EXPOSE 7860
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]
+```
+
+**Build and run:**
+```bash
+# Build (pass PAT as build arg)
+docker build --build-arg GITHUB_PAT=your_pat_here -t my-agent .
+
+# Run
+docker run -p 7860:7860 --env-file .env my-agent
+```
+
+### Cloud Platforms
+
+**AWS ECS / GCP Cloud Run / Azure Container Apps:**
+1. Build Docker image locally or in CI/CD
+2. Push to container registry (ECR, GCR, ACR)
+3. Deploy as container service
+4. Inject environment variables from secrets manager
+
+---
+
+## Troubleshooting / FAQ
+
+### Installation Issues
+
+**Q: "ModuleNotFoundError: No module named 'point9_platform'"**
+
+The platform isn't installed. Install it:
+```bash
+pip install git+https://github.com/shivam0897-i/agent-platform.git
+```
+
+If using a private repo, use PAT:
+```bash
+pip install git+https://<YOUR_PAT>@github.com/shivam0897-i/agent-platform.git
+```
+
+---
+
+**Q: "Permission denied" when installing from GitHub**
+
+Your PAT doesn't have access or has expired. Generate a new one:
+1. GitHub → Settings → Developer Settings → Personal Access Tokens
+2. Create token with `repo` read access
+3. Use in pip install command
+
+---
+
+**Q: "ERROR: Could not find a version that satisfies the requirement"**
+
+Check your requirements.txt format:
+```txt
+# Correct format
+point9-agent-platform @ git+https://github.com/shivam0897-i/agent-platform.git
+
+# Wrong format
+point9-agent-platform==1.0.0  # Not on PyPI!
+```
+
+---
+
+### Agent Issues
+
+**Q: "Request outside [agent_name] domain"**
+
+Your message doesn't match domain keywords. Check `get_domain_keywords()`:
+```python
+def get_domain_keywords(self) -> List[str]:
+    return ["summarize", "document", "text"]  # Message must contain one of these
+```
+
+Solution: Add more keywords or modify the request.
+
+---
+
+**Q: "Tool not discovered" or "No tools found"**
+
+1. Check your `tools_package` path in `__init__`:
+```python
+super().__init__(
+    session_id=session_id,
+    tools_package="my_agent.tools",  # Must match your package structure
+)
+```
+
+2. Ensure tools have the `@tool` decorator:
+```python
+from point9_platform.tools.decorator import tool
+
+@tool(name="my_tool", description="...")
+def my_tool(...):
+    ...
+```
+
+3. Check `tools/__init__.py` exists (even if empty)
+
+---
+
+**Q: "LLM returned invalid response" or "list index out of range"**
+
+The LLM returned an empty response. Check:
+1. API key is set in `.env`
+2. Model name is correct (e.g., `gemini/gemini-2.0-flash`)
+3. You have API quota remaining
+
+---
+
+**Q: "State field not found" or TypedDict errors**
+
+Your state TypedDict is missing required fields. Ensure you have all base fields:
+```python
+class MyState(TypedDict):
+    # Required base fields
+    messages: Annotated[List[Dict[str, Any]], message_reducer]
+    session_id: str
+    should_continue: bool
+    error: Optional[str]
+    iteration: int
+    max_iterations: int
+    model: str
+    
+    # Standard fields
+    documents: Dict[str, DocumentInfo]
+    results: Dict[str, Any]
+    plan: List[str]
+    current_step: int
+    thoughts: List[str]
+```
+
+---
+
+### Configuration Issues
+
+**Q: "GEMINI_API_KEY not found"**
+
+1. Create `.env` file in your agent root:
+```env
+GEMINI_API_KEY=your-key-here
+```
+
+2. Load it in your app:
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+
+---
+
+**Q: How do I switch LLM providers?**
+
+Set the model in your state or settings:
+```python
+# In settings.py
+DEFAULT_LLM_MODEL: str = "openai/gpt-4o-mini"  # or gemini/gemini-2.0-flash
+
+# Required env var for chosen provider
+OPENAI_API_KEY=your-key  # for openai/*
+GEMINI_API_KEY=your-key  # for gemini/*
+```
+
+Supported: `gemini/*`, `openai/*`, `anthropic/*`, `groq/*`, `mistral/*`
+
+---
+
+### Deployment Issues
+
+**Q: Hugging Face build fails with "Permission denied"**
+
+1. Check the secret name is exactly `GITHUB_PAT`
+2. Verify the PAT has read access to the repo
+3. Regenerate the PAT and update the HF secret
+
+---
+
+**Q: Docker build fails installing private package**
+
+Pass the PAT as build argument:
+```bash
+docker build --build-arg GITHUB_PAT=ghp_xxxx -t my-agent .
+```
+
+In Dockerfile:
+```dockerfile
+ARG GITHUB_PAT
+RUN pip install git+https://${GITHUB_PAT}@github.com/shivam0897-i/agent-platform.git
 ```
 
 ---
@@ -1048,6 +1843,66 @@ lc_agent/
 
 ---
 
+## API Reference (Quick Reference)
+
+### Imports
+
+```python
+# Core
+from point9_platform import BaseAgent, tool, ToolRegistry, UserSettings, SYSTEM_SETTINGS
+
+# Storage (optional)
+from point9_platform.storage import S3Storage, MongoStore, get_s3_storage, get_mongo_store
+
+# Logging
+from point9_platform.observability import setup_logging, get_logger
+
+# Streaming
+from point9_platform.observability.emitter import get_session_emitter, StepType, StepStatus
+
+# LLM
+from point9_platform.llm.provider import get_llm_provider
+
+# Health endpoints
+from point9_platform.health import create_health_router
+
+# State utilities
+from point9_platform.agent.state import message_reducer, DocumentInfo
+```
+
+### BaseAgent Methods
+
+| Method | Required | Returns | Description |
+|--------|----------|---------|-------------|
+| `get_agent_name()` | ✅ | `str` | Unique agent identifier |
+| `get_domain_keywords()` | ✅ | `List[str]` | Keywords for request validation |
+| `create_initial_state(session_id)` | ✅ | `StateT` | Create initial TypedDict state |
+| `get_prompts()` | ✅ | `Dict[str, str]` | Prompt templates |
+| `get_state_class()` | No | `Type` | TypedDict class for state |
+| `create_graph()` | No | `CompiledGraph` | Custom LangGraph workflow |
+| `on_start(state)` | No | `None` | Lifecycle hook before processing |
+| `on_complete(state, result)` | No | `None` | Lifecycle hook after success |
+| `on_error(state, error)` | No | `None` | Lifecycle hook on failure |
+| `process(message, documents)` | Built-in | `Dict` | Main entry point |
+
+### @tool Decorator
+
+```python
+@tool(
+    name="tool_name",           # Required: unique tool name
+    description="What it does"  # Required: LLM uses this to decide when to call
+)
+def my_tool(
+    param1: str,                # Regular parameters (sent to LLM schema)
+    param2: int = 10,           # Optional with default
+    state: Dict[str, Any] = None  # Injected automatically, not in schema
+) -> Dict[str, Any]:
+    return {"status": "success", "data": ...}
+```
+
+---
+
 ## License
 
 Proprietary - Point9 Team
+
