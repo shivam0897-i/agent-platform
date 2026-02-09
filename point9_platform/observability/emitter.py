@@ -124,7 +124,7 @@ class StepEmitter:
         details: Optional[Dict[str, Any]] = None,
         progress: Optional[int] = None
     ):
-        """Emit from synchronous code"""
+        """Emit from synchronous code (thread-safe)"""
         step = ExecutionStep(
             step_type=step_type,
             status=status,
@@ -136,12 +136,36 @@ class StepEmitter:
         self.steps.append(step)
         logger.info(f"[{self.process_id}] {step_type.value}: {message}")
         
-        # Notify subscribers in thread-safe way
+        # Notify subscribers in thread-safe way using call_soon_threadsafe
+        self._notify_subscribers_threadsafe(step)
+    
+    def _notify_subscribers_threadsafe(self, step, end_signal: bool = False):
+        """Thread-safe notification of subscribers"""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop - try get_event_loop for backwards compat
+            try:
+                loop = asyncio.get_event_loop()
+                if not loop.is_running():
+                    loop = None
+            except:
+                loop = None
+        
         for queue in self._subscribers:
             try:
-                queue.put_nowait(step)
-            except:
-                pass
+                if loop and loop.is_running():
+                    # Thread-safe: schedule on event loop
+                    loop.call_soon_threadsafe(queue.put_nowait, step)
+                    if end_signal:
+                        loop.call_soon_threadsafe(queue.put_nowait, None)
+                else:
+                    # Fallback for same-thread calls
+                    queue.put_nowait(step)
+                    if end_signal:
+                        queue.put_nowait(None)
+            except Exception as e:
+                logger.debug(f"Failed to notify subscriber: {e}")
     
     def complete_blocking(
         self,
@@ -149,7 +173,7 @@ class StepEmitter:
         final_message: str = None,
         result_data: Dict[str, Any] = None
     ):
-        """Mark process as complete"""
+        """Mark process as complete (thread-safe)"""
         self._completed = True
         
         step_type = StepType.COMPLETE if success else StepType.ERROR
@@ -165,12 +189,8 @@ class StepEmitter:
         
         self.steps.append(step)
         
-        for queue in self._subscribers:
-            try:
-                queue.put_nowait(step)
-                queue.put_nowait(None)  # Signal end
-            except:
-                pass
+        # Thread-safe notification with end signal
+        self._notify_subscribers_threadsafe(step, end_signal=True)
     
     def subscribe(self) -> asyncio.Queue:
         """Subscribe to step updates"""
