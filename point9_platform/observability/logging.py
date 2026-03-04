@@ -18,7 +18,7 @@ Usage:
 import logging
 import sys
 import warnings
-from typing import Optional, List
+from typing import List
 
 # Suppress common Pydantic/LiteLLM warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")

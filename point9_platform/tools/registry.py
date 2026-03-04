@@ -7,10 +7,10 @@ Auto-discovers tools from agent's tools package.
 
 import importlib
 import pkgutil
-from typing import Dict, Any, List, Callable, Optional
+from typing import Dict, List, Callable, Optional
 import logging
 
-from point9_platform.tools.decorator import get_tools_by_package, clear_registry
+from point9_platform.tools.decorator import get_tools_by_package
 
 logger = logging.getLogger(__name__)
 

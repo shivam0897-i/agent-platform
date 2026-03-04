@@ -37,7 +37,7 @@ def create_default_planner(llm, planner_prompt: str = None) -> Callable:
         doc_context = ""
         if documents:
             doc_context = "\n\nUPLOADED FILES:\n"
-            for doc_id, info in documents.items():
+            for _doc_id, info in documents.items():
                 file_type = info.get('type', 'unknown')
                 filename = info.get('filename', 'unknown')
                 doc_context += f"- {filename} (type: {file_type})\n"

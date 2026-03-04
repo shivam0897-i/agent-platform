@@ -5,11 +5,10 @@ Tool Executor
 Executes tools with retry logic and observability.
 """
 
-import json
 import inspect
 import logging
 import time
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any
 
 from point9_platform.tools.registry import ToolRegistry
 from point9_platform.settings.system import SYSTEM_SETTINGS
