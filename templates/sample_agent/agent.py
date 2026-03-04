@@ -5,7 +5,7 @@ Sample Document Agent
 Reference implementation showing how to create an agent.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List
 from point9_platform.agent.base import BaseAgent
 from sample_agent.state import DocumentAgentState
 from sample_agent.settings import DocumentSettings
@@ -40,20 +40,23 @@ class DocumentAgent(BaseAgent[DocumentAgentState]):
         from point9_platform.settings.system import SYSTEM_SETTINGS
         
         return DocumentAgentState(
+            # Base core fields
             messages=[],
             session_id=session_id,
-            documents={},
-            results={},
+            should_continue=True,
+            error=None,
+            iteration=0,
+            max_iterations=SYSTEM_SETTINGS.MAX_ITERATIONS,
+            model=self.settings.DEFAULT_LLM_MODEL,
+            # Base planning fields
             plan=[],
             current_step=0,
             current_task=None,
             thoughts=[],
-            should_continue=True,
+            results={},
+            documents=None,
+            # Domain-specific fields
             needs_human_input=False,
-            error=None,
-            iteration=0,
-            max_iterations=SYSTEM_SETTINGS.MAX_ITERATIONS,
-            model=self.settings.DEFAULT_LLM_MODEL
         )
     
     def get_prompts(self) -> Dict[str, str]:

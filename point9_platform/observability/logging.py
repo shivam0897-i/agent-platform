@@ -171,7 +171,7 @@ def setup_logging(
 
     # Log startup
     logger = logging.getLogger(agent_name)
-    logger.info(f"Logging configured: level={level}, noise_filter={filter_noise}")
+    logger.info("Logging configured: level=%s, noise_filter=%s", level, filter_noise)
 
 
 def get_logger(name: str) -> logging.Logger:

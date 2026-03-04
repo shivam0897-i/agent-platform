@@ -5,7 +5,7 @@ Health & Info Endpoints
 Standard endpoints for production monitoring.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 import platform
 import os
@@ -13,7 +13,7 @@ import os
 from point9_platform.settings.system import SYSTEM_SETTINGS
 
 
-_start_time = datetime.utcnow()
+_start_time = datetime.now(timezone.utc)
 
 
 def get_health_response() -> Dict[str, Any]:
@@ -25,7 +25,7 @@ def get_health_response() -> Dict[str, Any]:
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     }
 
 
@@ -45,7 +45,7 @@ def get_info_response(
     Returns:
         Agent info dict
     """
-    uptime = datetime.utcnow() - _start_time
+    uptime = datetime.now(timezone.utc) - _start_time
     
     return {
         "agent": agent_name,
@@ -74,7 +74,7 @@ def get_ready_response(checks: Dict[str, bool] = None) -> Dict[str, Any]:
     return {
         "ready": all_ready,
         "checks": checks,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     }
 
 

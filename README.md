@@ -100,28 +100,28 @@ def my_tool(data: str, state: dict) -> dict:
 
 **Option 1: Using SSH (if you have SSH keys configured)**
 ```bash
-pip install git+ssh://git@github.com/shivam0897-i/agent-platform.git
+pip install git+ssh://git@github.com/santhoshmallojwala/unifyriver.git@shivam
 ```
 
 **Option 2: Using Personal Access Token (PAT)**
 ```bash
 # Replace <YOUR_PAT> with your GitHub Personal Access Token
-pip install git+https://<YOUR_PAT>@github.com/shivam0897-i/agent-platform.git
+pip install git+https://<YOUR_PAT>@github.com/santhoshmallojwala/unifyriver.git@shivam
 ```
 
 **Option 3: In requirements.txt**
 ```txt
 # Using PAT (replace <YOUR_PAT>)
-point9-agent-platform @ git+https://<YOUR_PAT>@github.com/shivam0897-i/agent-platform.git
+point9-agent-platform @ git+https://<YOUR_PAT>@github.com/santhoshmallojwala/unifyriver.git@shivam
 
 # Or using SSH
-point9-agent-platform @ git+ssh://git@github.com/shivam0897-i/agent-platform.git
+point9-agent-platform @ git+ssh://git@github.com/santhoshmallojwala/unifyriver.git@shivam
 ```
 
 ### For Development (Editable Install)
 
 ```bash
-git clone https://github.com/shivam0897-i/agent-platform.git
+git clone https://github.com/santhoshmallojwala/unifyriver.git
 cd agent-platform
 pip install -e .
 ```
@@ -239,7 +239,7 @@ summarizer_agent/
 
 ```txt
 # Point9 Platform (from private repo)
-point9-agent-platform @ git+https://github.com/shivam0897-i/agent-platform.git
+point9-agent-platform @ git+https://github.com/santhoshmallojwala/unifyriver.git@shivam
 
 # Web framework
 fastapi>=0.104.0
@@ -1234,6 +1234,54 @@ MONGODB_COLLECTION=sessions
 
 ---
 
+### 🔬 Evaluation Framework
+
+Built-in evaluation for any Point9 agent — RAGAS, HuggingFace Evaluate, and LLM-as-Judge.
+
+```python
+from point9_platform.evaluation import Evaluator, get_evaluator
+
+# Using singleton (runs all available scorers)
+evaluator = get_evaluator()
+result = evaluator.evaluate(
+    query="What is the refund policy?",
+    context=["Our policy allows returns within 30 days."],
+    response="You can return items within 30 days.",
+    reference="Refund policy: 30-day return window.",  # optional
+)
+
+print(result.to_dict())
+# {
+#   "ragas":     {"context_precision": 0.92, "faithfulness": 0.95, ...},
+#   "hf":        {"rouge1": 0.87, "rougeL": 0.82, "bertscore_f1": 0.91, ...},
+#   "llm_judge": {"hallucination_score": 0.05, "self_consistency": 0.93, "content_safety_score": 0.0},
+# }
+
+# Cherry-pick scorers
+evaluator = Evaluator(run_ragas=True, run_hf=False, run_llm_judge=True)
+
+# Use individual scorers directly
+from point9_platform.evaluation import RagasScorer, HFScorer, LLMJudge
+judge = LLMJudge(model="groq/llama-3.3-70b-versatile")
+scores = judge.score(query=..., context=[...], response=...)
+
+# Async support for FastAPI endpoints
+result = await evaluator.aevaluate(query=..., context=[...], response=...)
+```
+
+Install evaluation dependencies:
+```bash
+pip install "point9-agent-platform[eval]"
+```
+
+| Scorer | Metrics | Requires |
+|--------|---------|----------|
+| `RagasScorer` | Context Precision, Context Recall, Faithfulness, Answer Relevance | `ragas`, `datasets` |
+| `HFScorer` | ROUGE-1, ROUGE-L, BERTScore (P/R/F1) | `evaluate`, `rouge_score`, `bert_score` |
+| `LLMJudge` | Hallucination Score, Self-Consistency, Content Safety | `litellm` |
+
+---
+
 ### Logging
 
 Consistent, color-coded logging for all agents.
@@ -1557,7 +1605,7 @@ CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]
 
 ```txt
 # The ${GITHUB_PAT} will be replaced during Docker build
-point9-agent-platform @ git+https://${GITHUB_PAT}@github.com/shivam0897-i/agent-platform.git
+point9-agent-platform @ git+https://${GITHUB_PAT}@github.com/santhoshmallojwala/unifyriver.git@shivam
 
 fastapi>=0.104.0
 uvicorn>=0.24.0
@@ -1636,12 +1684,12 @@ docker run -p 7860:7860 --env-file .env my-agent
 
 The platform isn't installed. Install it:
 ```bash
-pip install git+https://github.com/shivam0897-i/agent-platform.git
+pip install git+https://github.com/santhoshmallojwala/unifyriver.git@shivam
 ```
 
 If using a private repo, use PAT:
 ```bash
-pip install git+https://<YOUR_PAT>@github.com/shivam0897-i/agent-platform.git
+pip install git+https://<YOUR_PAT>@github.com/santhoshmallojwala/unifyriver.git@shivam
 ```
 
 ---
@@ -1660,7 +1708,7 @@ Your PAT doesn't have access or has expired. Generate a new one:
 Check your requirements.txt format:
 ```txt
 # Correct format
-point9-agent-platform @ git+https://github.com/shivam0897-i/agent-platform.git
+point9-agent-platform @ git+https://github.com/santhoshmallojwala/unifyriver.git@shivam
 
 # Wrong format
 point9-agent-platform==1.0.0  # Not on PyPI!
@@ -1791,7 +1839,7 @@ docker build --build-arg GITHUB_PAT=ghp_xxxx -t my-agent .
 In Dockerfile:
 ```dockerfile
 ARG GITHUB_PAT
-RUN pip install git+https://${GITHUB_PAT}@github.com/shivam0897-i/agent-platform.git
+RUN pip install git+https://${GITHUB_PAT}@github.com/santhoshmallojwala/unifyriver.git@shivam
 ```
 
 ---

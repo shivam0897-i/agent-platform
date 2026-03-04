@@ -6,6 +6,7 @@ Executes tools with retry logic and observability.
 """
 
 import json
+import inspect
 import logging
 import time
 from typing import Dict, Any, Callable, Optional
@@ -70,16 +71,24 @@ class ToolExecutor:
                 details={"tool": tool_name, "args": _sanitize_args(args)}
             )
         
+        # Check once (outside retry loop) whether tool accepts 'state'
+        sig = inspect.signature(tool_fn)
+        inject_state = "state" in sig.parameters
+        
         # Retry loop
         last_error = None
         for attempt in range(SYSTEM_SETTINGS.TOOL_RETRY_ATTEMPTS):
             try:
-                # Execute tool with state injection
-                result = tool_fn(**args, state=self.state)
+                if inject_state:
+                    result = tool_fn(**args, state=self.state)
+                else:
+                    result = tool_fn(**args)
                 
-                # Convert Pydantic model to dict if needed
+                # Normalise result to a dict
                 if hasattr(result, 'model_dump'):
                     result = result.model_dump()
+                elif not isinstance(result, dict):
+                    result = {"status": "success", "data": result}
                 
                 # Emit success
                 if emitter:
@@ -95,7 +104,7 @@ class ToolExecutor:
                 
             except Exception as e:
                 last_error = e
-                logger.warning(f"Tool {tool_name} attempt {attempt + 1} failed: {e}")
+                logger.warning("Tool %s attempt %s failed: %s", tool_name, attempt + 1, e)
                 
                 if attempt < SYSTEM_SETTINGS.TOOL_RETRY_ATTEMPTS - 1:
                     # Exponential backoff
@@ -103,7 +112,7 @@ class ToolExecutor:
                     time.sleep(delay)
         
         # All retries failed
-        logger.error(f"Tool {tool_name} failed after {SYSTEM_SETTINGS.TOOL_RETRY_ATTEMPTS} attempts")
+        logger.error("Tool %s failed after %s attempts", tool_name, SYSTEM_SETTINGS.TOOL_RETRY_ATTEMPTS)
         
         if emitter:
             from point9_platform.observability.emitter import StepType, StepStatus

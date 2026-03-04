@@ -33,7 +33,7 @@ def create_default_planner(llm, planner_prompt: str = None) -> Callable:
         base_prompt = planner_prompt or _get_default_planner_prompt()
         
         # Add document context to system prompt (generic for all agents)
-        documents = state.get("documents", {})
+        documents = state.get("documents") or {}
         doc_context = ""
         if documents:
             doc_context = "\n\nUPLOADED FILES:\n"
@@ -89,7 +89,7 @@ def create_default_planner(llm, planner_prompt: str = None) -> Callable:
                 )
                 
         except Exception as e:
-            logger.error(f"Planning error: {e}")
+            logger.error("Planning error: %s", e)
             plan = ["Process request", "Validate results", "Provide summary"]
             thoughts = [f"Default plan due to error: {e}"]
         
@@ -125,7 +125,7 @@ def create_default_executor(llm, tool_registry) -> Callable:
         current_task = plan[current_step]
         
         # Get documents context for executor
-        documents = state.get("documents", {})
+        documents = state.get("documents") or {}
         doc_context = ""
         if documents:
             doc_context = "\n\nAvailable documents:\n"
@@ -167,7 +167,7 @@ def create_default_executor(llm, tool_registry) -> Callable:
                     tool_name = tc.function.name
                     tool_args = json.loads(tc.function.arguments)
                     
-                    logger.info(f"Executing tool: {tool_name}")
+                    logger.info("Executing tool: %s", tool_name)
                     
                     tool_result = tool_executor.execute(
                         tool_name=tool_name,
@@ -175,12 +175,20 @@ def create_default_executor(llm, tool_registry) -> Callable:
                         emitter=emitter
                     )
                     
-                    # Store result by document_id if present, otherwise by tool_name
+                    # Store result with a unique key to prevent overwrites.
+                    # Priority: document_id > tool_call_id > tool_name_index
                     if "document_id" in tool_result:
                         results[tool_result["document_id"]] = tool_result
+                    elif hasattr(tc, 'id') and tc.id:
+                        results[f"{tool_name}_{tc.id}"] = tool_result
                     else:
-                        # Fallback: store by tool name
-                        results[tool_name] = tool_result
+                        # Fallback: append index to avoid overwriting previous results
+                        key = tool_name
+                        idx = 0
+                        while key in results:
+                            idx += 1
+                            key = f"{tool_name}_{idx}"
+                        results[key] = tool_result
                     
                     new_messages.append({
                         "role": "tool",
@@ -197,7 +205,7 @@ def create_default_executor(llm, tool_registry) -> Callable:
             }
             
         except Exception as e:
-            logger.error(f"Execution error: {e}")
+            logger.error("Execution error: %s", e)
             if emitter:
                 emitter.emit_blocking(
                     StepType.ERROR,
@@ -294,7 +302,7 @@ def create_default_responder(llm, responder_prompt: str = None) -> Callable:
             final_response = response.choices[0].message.content
             
         except Exception as e:
-            logger.error(f"Response generation error: {e}")
+            logger.error("Response generation error: %s", e)
             final_response = _generate_fallback_response(results)
         
         # Emit completion

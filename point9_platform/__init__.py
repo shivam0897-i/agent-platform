@@ -21,8 +21,22 @@ from point9_platform.settings.user import UserSettings
 from point9_platform.settings.system import SYSTEM_SETTINGS
 from point9_platform.health import get_health_response, get_info_response, create_health_router
 
-# Storage utilities
-from point9_platform.storage import S3Storage, get_s3_storage, MongoStore, get_mongo_store
+# Storage utilities (optional — requires boto3/pymongo)
+try:
+    from point9_platform.storage import S3Storage, get_s3_storage, MongoStore, get_mongo_store
+except ImportError:
+    S3Storage = None  # type: ignore[assignment,misc]
+    get_s3_storage = None  # type: ignore[assignment]
+    MongoStore = None  # type: ignore[assignment,misc]
+    get_mongo_store = None  # type: ignore[assignment]
+
+# Evaluation framework (optional — requires ragas/evaluate/litellm)
+try:
+    from point9_platform.evaluation import Evaluator, EvaluationResult, get_evaluator
+except ImportError:
+    Evaluator = None  # type: ignore[assignment,misc]
+    EvaluationResult = None  # type: ignore[assignment,misc]
+    get_evaluator = None  # type: ignore[assignment]
 
 __version__ = "1.0.0"
 __all__ = [
@@ -39,6 +53,10 @@ __all__ = [
     "get_s3_storage",
     "MongoStore",
     "get_mongo_store",
+    # Evaluation
+    "Evaluator",
+    "EvaluationResult",
+    "get_evaluator",
 ]
 
 

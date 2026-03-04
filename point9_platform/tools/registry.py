@@ -61,7 +61,7 @@ class ToolRegistry:
         try:
             package = importlib.import_module(self.tools_package)
         except ImportError as e:
-            logger.warning(f"Could not import tools package '{self.tools_package}': {e}")
+            logger.warning("Could not import tools package '%s': %s", self.tools_package, e)
             self._discovered = True
             return
         
@@ -69,7 +69,7 @@ class ToolRegistry:
         if hasattr(package, "__path__"):
             package_path = package.__path__
         else:
-            logger.warning(f"'{self.tools_package}' is not a package")
+            logger.warning("'%s' is not a package", self.tools_package)
             self._discovered = True
             return
         
@@ -79,15 +79,15 @@ class ToolRegistry:
                 module_name = f"{self.tools_package}.{module_info.name}"
                 try:
                     importlib.import_module(module_name)
-                    logger.debug(f"Discovered tools from: {module_name}")
+                    logger.debug("Discovered tools from: %s", module_name)
                 except Exception as e:
-                    logger.error(f"Error importing {module_name}: {e}")
+                    logger.error("Error importing %s: %s", module_name, e)
         
         # Cache ONLY tools from this agent's package (isolation!)
         self._tool_cache = get_tools_by_package(self.tools_package)
         self._discovered = True
         
-        logger.info(f"Discovered {len(self._tool_cache)} tools from {self.tools_package}")
+        logger.info("Discovered %s tools from %s", len(self._tool_cache), self.tools_package)
     
     def get_definitions(self) -> List[Dict]:
         """Get OpenAI-compatible tool definitions for LLM function calling"""

@@ -100,7 +100,7 @@ class S3Storage:
                 ExtraArgs=extra_args if extra_args else None
             )
             
-            logger.info(f"Uploaded {file_path} to s3://{self.bucket_name}/{s3_key}")
+            logger.info("Uploaded %s to s3://%s/%s", file_path, self.bucket_name, s3_key)
             
             return {
                 "success": True,
@@ -109,7 +109,7 @@ class S3Storage:
             }
             
         except ClientError as e:
-            logger.error(f"S3 upload failed: {e}")
+            logger.error("S3 upload failed: %s", e)
             return {"success": False, "error": str(e)}
     
     def upload_bytes(
@@ -137,7 +137,7 @@ class S3Storage:
                 ContentType=content_type
             )
             
-            logger.info(f"Uploaded bytes to s3://{self.bucket_name}/{s3_key}")
+            logger.info("Uploaded bytes to s3://%s/%s", self.bucket_name, s3_key)
             
             return {
                 "success": True,
@@ -146,7 +146,7 @@ class S3Storage:
             }
             
         except ClientError as e:
-            logger.error(f"S3 upload failed: {e}")
+            logger.error("S3 upload failed: %s", e)
             return {"success": False, "error": str(e)}
     
     def upload_json(self, data: Dict, s3_key: str) -> Dict[str, Any]:
@@ -178,11 +178,11 @@ class S3Storage:
         """
         try:
             self.client.download_file(self.bucket_name, s3_key, local_path)
-            logger.info(f"Downloaded s3://{self.bucket_name}/{s3_key} to {local_path}")
+            logger.info("Downloaded s3://%s/%s to %s", self.bucket_name, s3_key, local_path)
             return {"success": True, "local_path": local_path}
             
         except ClientError as e:
-            logger.error(f"S3 download failed: {e}")
+            logger.error("S3 download failed: %s", e)
             return {"success": False, "error": str(e)}
     
     def download_bytes(self, s3_key: str) -> Optional[bytes]:
@@ -199,7 +199,7 @@ class S3Storage:
             response = self.client.get_object(Bucket=self.bucket_name, Key=s3_key)
             return response["Body"].read()
         except ClientError as e:
-            logger.error(f"S3 download failed: {e}")
+            logger.error("S3 download failed: %s", e)
             return None
     
     # ==================== URL Generation ====================
@@ -230,7 +230,7 @@ class S3Storage:
             return url
             
         except ClientError as e:
-            logger.error(f"Failed to generate presigned URL: {e}")
+            logger.error("Failed to generate presigned URL: %s", e)
             return None
     
     # ==================== File Management ====================
@@ -239,10 +239,10 @@ class S3Storage:
         """Delete a file from S3."""
         try:
             self.client.delete_object(Bucket=self.bucket_name, Key=s3_key)
-            logger.info(f"Deleted s3://{self.bucket_name}/{s3_key}")
+            logger.info("Deleted s3://%s/%s", self.bucket_name, s3_key)
             return True
         except ClientError as e:
-            logger.error(f"S3 delete failed: {e}")
+            logger.error("S3 delete failed: %s", e)
             return False
     
     def list_files(self, prefix: str) -> List[Dict[str, Any]]:
@@ -272,7 +272,7 @@ class S3Storage:
             return files
             
         except ClientError as e:
-            logger.error(f"S3 list failed: {e}")
+            logger.error("S3 list failed: %s", e)
             return []
     
     def file_exists(self, s3_key: str) -> bool:

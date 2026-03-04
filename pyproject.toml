@@ -14,7 +14,7 @@ authors = [
 ]
 
 dependencies = [
-    "langgraph>=0.0.40",
+    "langgraph>=0.2.0",
     "litellm>=1.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
@@ -26,6 +26,14 @@ dependencies = [
 storage = [
     "boto3>=1.28.0",
     "pymongo>=4.5.0",
+]
+eval = [
+    "ragas>=0.1.0,<0.3.0",
+    "datasets>=2.14.0",
+    "evaluate>=0.4.0",
+    "rouge_score>=0.1.2",
+    "bert_score>=0.3.13",
+    "langchain-community>=0.0.10",
 ]
 dev = [
     "pytest>=7.0.0",

@@ -43,16 +43,16 @@ def load_yaml_config(config_path: str = "config.yaml") -> Dict[str, Any]:
         path = Path.cwd() / config_path
     
     if not path.exists():
-        logger.debug(f"Config file not found: {config_path}")
+        logger.debug("Config file not found: %s", config_path)
         return {}
     
     try:
         with open(path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f) or {}
-            logger.info(f"Loaded config from: {path}")
+            logger.info("Loaded config from: %s", path)
             return config
     except Exception as e:
-        logger.warning(f"Error loading {config_path}: {e}")
+        logger.warning("Error loading %s: %s", config_path, e)
         return {}
 
 

@@ -3,37 +3,24 @@ Document Agent State
 ====================
 
 Domain-specific state extending BaseAgentState.
+
+NOTE: Use TypedDict inheritance to get all base + planning fields
+automatically. Only declare YOUR domain-specific fields here.
 """
 
-from typing import Dict, Any, List, Optional, Annotated, TypedDict
-from point9_platform.agent.state import BaseAgentState, DocumentInfo, ProcessingResult, message_reducer
+from point9_platform.agent.state import BaseAgentState
 
 
-class DocumentAgentState(TypedDict):
+class DocumentAgentState(BaseAgentState):
     """
     State for document processing agent.
     
-    Extends base state with document-specific fields.
+    Inherits from BaseAgentState which includes:
+    - Core fields: messages, session_id, should_continue, error, iteration, etc.
+    - Planning fields: plan, current_step, current_task, thoughts, results, documents
+    
+    Only add domain-specific fields below.
     """
     
-    # === BASE FIELDS (required) ===
-    messages: Annotated[List[Dict[str, Any]], message_reducer]
-    session_id: str
-    should_continue: bool
-    error: Optional[str]
-    iteration: int
-    max_iterations: int
-    model: str
-    
-    # === DOCUMENT FIELDS ===
-    documents: Dict[str, DocumentInfo]
-    results: Dict[str, ProcessingResult]
-    
-    # === PLANNING FIELDS ===
-    plan: List[str]
-    current_step: int
-    current_task: Optional[str]
-    
-    # === DEBUG/AUDIT FIELDS ===
-    thoughts: List[str]
+    # === DOMAIN-SPECIFIC FIELDS ===
     needs_human_input: bool

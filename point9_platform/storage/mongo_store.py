@@ -24,7 +24,7 @@ Environment Variables:
 import os
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pymongo import MongoClient, DESCENDING
 from pymongo.collection import Collection
@@ -75,7 +75,7 @@ class MongoStore:
             self.sessions.create_index([("status", 1), ("created_at", DESCENDING)])
             logger.debug("MongoDB indexes ensured")
         except Exception as e:
-            logger.warning(f"Index creation warning: {e}")
+            logger.warning("Index creation warning: %s", e)
     
     # ==================== Session CRUD ====================
     
@@ -96,7 +96,7 @@ class MongoStore:
         Returns:
             Created session document
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         session = {
             "session_id": session_id,
@@ -117,11 +117,11 @@ class MongoStore:
         try:
             result = self.sessions.insert_one(session)
             session["_id"] = str(result.inserted_id)
-            logger.info(f"[{session_id}] Session created")
+            logger.info("[%s] Session created", session_id)
             return session
             
         except Exception as e:
-            logger.error(f"[{session_id}] Failed to create session: {e}")
+            logger.error("[%s] Failed to create session: %s", session_id, e)
             raise
     
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -142,7 +142,7 @@ class MongoStore:
         Returns:
             True if updated, False otherwise
         """
-        update["updated_at"] = datetime.utcnow()
+        update["updated_at"] = datetime.now(timezone.utc)
         
         result = self.sessions.update_one(
             {"session_id": session_id},
@@ -223,7 +223,7 @@ class MongoStore:
             True if added, False otherwise
         """
         log_entry = {
-            "ts": datetime.utcnow(),
+            "ts": datetime.now(timezone.utc),
             "level": level,
             "step": step,
             "msg": msg
@@ -262,7 +262,7 @@ class MongoStore:
         """
         result_with_meta = {
             "status": result.get("status", "success"),
-            "executed_at": datetime.utcnow(),
+            "executed_at": datetime.now(timezone.utc),
             **result
         }
         
@@ -272,7 +272,7 @@ class MongoStore:
         )
         
         if update_result.modified_count > 0:
-            logger.debug(f"[{session_id}] Stored {tool_name} result")
+            logger.debug("[%s] Stored %s result", session_id, tool_name)
         
         return update_result.modified_count > 0
     
@@ -308,7 +308,7 @@ class MongoStore:
         message = {
             "role": role,
             "content": content,
-            "ts": datetime.utcnow()
+            "ts": datetime.now(timezone.utc)
         }
         
         result = self.sessions.update_one(

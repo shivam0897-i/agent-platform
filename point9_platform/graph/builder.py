@@ -6,7 +6,7 @@ Utilities for constructing LangGraph workflows.
 """
 
 from typing import Callable, Type, Dict, Any
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from point9_platform.graph.nodes import should_continue
@@ -40,13 +40,13 @@ def build_default_graph(
     # type(dict_instance) returns 'dict', not the TypedDict!
     if state_class is None:
         # Try to get from agent's type hints
-        import inspect
         from typing import get_type_hints
+        from point9_platform.agent.state import BaseAgentState
         try:
             hints = get_type_hints(agent.create_initial_state)
-            state_class = hints.get('return', dict)
-        except:
-            state_class = dict
+            state_class = hints.get('return', BaseAgentState)
+        except Exception:
+            state_class = BaseAgentState
     
     # Create the state graph
     workflow = StateGraph(state_class)
@@ -57,8 +57,8 @@ def build_default_graph(
     workflow.add_node("reflector", reflector)
     workflow.add_node("responder", responder)
     
-    # Define edges
-    workflow.set_entry_point("planner")
+    # Define edges (using START instead of deprecated set_entry_point)
+    workflow.add_edge(START, "planner")
     workflow.add_edge("planner", "executor")
     workflow.add_edge("executor", "reflector")
     workflow.add_conditional_edges("reflector", should_continue)
@@ -90,7 +90,7 @@ def build_simple_graph(
     workflow = StateGraph(state_class)
     
     workflow.add_node("processor", processor)
-    workflow.set_entry_point("processor")
+    workflow.add_edge(START, "processor")
     workflow.add_edge("processor", END)
     
     memory = MemorySaver()

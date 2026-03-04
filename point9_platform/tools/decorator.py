@@ -71,7 +71,7 @@ def tool(
             }
         }
         
-        logger.debug(f"Registered tool: {name} from {origin_module}")
+        logger.debug("Registered tool: %s from %s", name, origin_module)
         
         @functools.wraps(func)
         def wrapper(*args, **kwargs):

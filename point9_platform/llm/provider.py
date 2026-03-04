@@ -8,7 +8,6 @@ Multi-provider LLM abstraction via LiteLLM.
 import os
 import logging
 from typing import Dict, Any, Optional, List
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -127,16 +126,16 @@ class LLMProvider:
         try:
             return self._litellm.completion(**call_kwargs)
         except Exception as e:
-            logger.warning(f"Primary model {model} failed: {e}")
+            logger.warning("Primary model %s failed: %s", model, e)
             
             # Try fallback if different from primary
             if fallback and fallback != model:
-                logger.info(f"Trying fallback model: {fallback}")
+                logger.info("Trying fallback model: %s", fallback)
                 call_kwargs["model"] = fallback
                 try:
                     return self._litellm.completion(**call_kwargs)
                 except Exception as fallback_error:
-                    logger.error(f"Fallback model {fallback} also failed: {fallback_error}")
+                    logger.error("Fallback model %s also failed: %s", fallback, fallback_error)
                     raise fallback_error
             raise
     
@@ -171,7 +170,7 @@ class LLMProvider:
         
         try:
             return self._litellm.supports_function_calling(model=model)
-        except:
+        except Exception:
             # Default to True for known models
             return True
 
@@ -180,9 +179,8 @@ class LLMProvider:
 _llm_provider: Optional[LLMProvider] = None
 
 
-@lru_cache
 def get_llm_provider() -> LLMProvider:
-    """Get singleton LLM provider instance"""
+    """Get singleton LLM provider instance."""
     global _llm_provider
     if _llm_provider is None:
         _llm_provider = LLMProvider()

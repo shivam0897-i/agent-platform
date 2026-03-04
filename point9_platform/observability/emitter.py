@@ -9,7 +9,7 @@ import asyncio
 import logging
 import json
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -52,7 +52,7 @@ class ExecutionStep:
     step_type: StepType
     status: StepStatus
     message: str
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
     details: Optional[Dict[str, Any]] = None
     progress: Optional[int] = None
     duration_ms: Optional[int] = None
@@ -114,7 +114,7 @@ class StepEmitter:
             try:
                 queue.put_nowait(step)
             except asyncio.QueueFull:
-                logger.warning(f"Queue full for {self.process_id}")
+                logger.warning("Queue full for %s", self.process_id)
     
     def emit_blocking(
         self,
@@ -134,7 +134,7 @@ class StepEmitter:
         )
         
         self.steps.append(step)
-        logger.info(f"[{self.process_id}] {step_type.value}: {message}")
+        logger.info("[%s] %s: %s", self.process_id, step_type.value, message)
         
         # Notify subscribers in thread-safe way using call_soon_threadsafe
         self._notify_subscribers_threadsafe(step)
@@ -149,7 +149,7 @@ class StepEmitter:
                 loop = asyncio.get_event_loop()
                 if not loop.is_running():
                     loop = None
-            except:
+            except Exception:
                 loop = None
         
         for queue in self._subscribers:
@@ -165,7 +165,7 @@ class StepEmitter:
                     if end_signal:
                         queue.put_nowait(None)
             except Exception as e:
-                logger.debug(f"Failed to notify subscriber: {e}")
+                logger.debug("Failed to notify subscriber: %s", e)
     
     def complete_blocking(
         self,

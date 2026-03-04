@@ -9,12 +9,17 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, TypeVar, Generic, Optional
 import logging
 
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+# StateGraph, START, END, MemorySaver are used via lazy imports in create_graph() and builder.py
+# Kept here so custom agents can import them from base if needed.
+from langgraph.graph import StateGraph, START, END  # noqa: F401
+from langgraph.checkpoint.memory import MemorySaver  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-StateT = TypeVar('StateT', bound=Dict[str, Any])
+# TypedDict instances are dicts at runtime but not subtypes in
+# the static type system.  We intentionally leave StateT unbound
+# so that type-checkers accept BaseAgent[MyTypedDict].
+StateT = TypeVar('StateT')
 
 
 class BaseAgent(ABC, Generic[StateT]):
@@ -120,7 +125,14 @@ class BaseAgent(ABC, Generic[StateT]):
     
     @property
     def graph(self):
-        """Get compiled graph (lazy initialization)"""
+        """
+        Get compiled graph (lazy initialization).
+        
+        NOTE: The default graph uses MemorySaver (in-memory checkpointer).
+        This means multi-turn memory is LOST when the agent instance is
+        garbage collected. For persistent multi-turn chat, override
+        create_graph() and use SqliteSaver or PostgresSaver.
+        """
         if self._compiled_graph is None:
             self._compiled_graph = self.create_graph()
         return self._compiled_graph
@@ -158,7 +170,7 @@ class BaseAgent(ABC, Generic[StateT]):
         initial_state = kwargs.pop("initial_state", None)
         if initial_state:
             state.update(initial_state)
-            logger.debug(f"Merged initial_state keys: {list(initial_state.keys())}")
+            logger.debug("Merged initial_state keys: %s", list(initial_state.keys()))
         
         if documents:
             state["documents"] = documents
@@ -180,7 +192,7 @@ class BaseAgent(ABC, Generic[StateT]):
             return result
             
         except Exception as e:
-            logger.error(f"Agent {self.get_agent_name()} error: {e}")
+            logger.error("Agent %s error: %s", self.get_agent_name(), e)
             self.on_error(state, e)
             return {
                 "success": False,
@@ -216,16 +228,36 @@ class BaseAgent(ABC, Generic[StateT]):
         """
         Return the TypedDict class for state.
         
-        Override this to return your custom state class.
-        This ensures LangGraph sees Annotated reducers.
+        Override this to return your custom state class explicitly.
+        This ensures LangGraph sees Annotated reducers (e.g., message_reducer).
+        
+        If not overridden, attempts to infer from create_initial_state()
+        return type annotation. Falls back to BaseAgentState if inference fails.
+        
+        WARNING: If your state class is not found, message_reducer won't work
+        and message history will grow unbounded.
         """
-        # Try to infer from type hints
         from typing import get_type_hints
+        from point9_platform.agent.state import BaseAgentState
         try:
             hints = get_type_hints(self.create_initial_state)
-            return hints.get('return', dict)
-        except:
-            return dict
+            state_class = hints.get('return', None)
+            if state_class is None:
+                logger.warning(
+                    "No return type annotation on %s.create_initial_state(). "
+                    "Falling back to BaseAgentState. Add '-> YourState' annotation "
+                    "or override get_state_class() to ensure reducers work.",
+                    self.__class__.__name__
+                )
+                return BaseAgentState
+            return state_class
+        except Exception:
+            logger.warning(
+                "Could not infer state class for %s. "
+                "Falling back to BaseAgentState.",
+                self.__class__.__name__
+            )
+            return BaseAgentState
     
     # =========================================================================
     # NODE FACTORIES - OVERRIDE FOR CUSTOM BEHAVIOR
