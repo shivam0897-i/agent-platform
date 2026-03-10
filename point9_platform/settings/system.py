@@ -33,7 +33,7 @@ class SystemSettings:
     TOOL_TIMEOUT: int = 30
     
     # Version info
-    PLATFORM_VERSION: str = "1.1.0"
+    PLATFORM_VERSION: str = "1.1.1"
 
 
 # Singleton instance - import this
