@@ -38,7 +38,7 @@ except ImportError:
     EvaluationResult = None  # type: ignore[assignment,misc]
     get_evaluator = None  # type: ignore[assignment]
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 __all__ = [
     "BaseAgent",
     "tool",

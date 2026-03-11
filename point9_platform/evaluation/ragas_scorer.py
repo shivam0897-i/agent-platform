@@ -24,8 +24,9 @@ Install:
 
 Compatibility:
     - ragas >= 0.4.0 (PRIMARY): EvaluationDataset + SingleTurnSample +
-      LiteLLMStructuredLLM via instructor.from_litellm. Metrics imported from
-      ragas.metrics.collections. Results extracted via .to_pandas().
+    LiteLLMStructuredLLM via instructor.from_litellm. Metrics use the
+    canonical ragas Metric objects accepted by ragas.evaluate().
+    Results extracted via .to_pandas().
     - ragas < 0.4.0 (LEGACY): HuggingFace Dataset + LangchainLLMWrapper.
       Kept for users who cannot upgrade. Requires langchain-community.
 
@@ -172,11 +173,17 @@ class RagasScorer:
         try:
             from ragas import evaluate as ragas_evaluate, EvaluationDataset
             from ragas.dataset_schema import SingleTurnSample
-            from ragas.metrics.collections import (
-                ContextPrecision,
-                ContextRecall,
-                Faithfulness,
-                AnswerRelevancy,
+            # IMPORTANT:
+            # ragas.evaluate() validates each metric with isinstance(metric, Metric)
+            # where Metric is ragas.metrics.base.Metric. In ragas 0.4.3, the
+            # Metric instances accepted by evaluate() are the canonical objects
+            # exported from ragas.metrics (backed by ragas.metrics._* modules),
+            # not class instances from ragas.metrics.collections.
+            from ragas.metrics import (
+                context_precision,
+                context_recall,
+                faithfulness,
+                answer_relevancy,
             )
         except ImportError as exc:
             logger.warning("ragas 0.4.x imports unavailable: %s", exc)
@@ -202,34 +209,23 @@ class RagasScorer:
         sample = SingleTurnSample(**sample_kwargs)
         dataset = EvaluationDataset(samples=[sample])
 
-        # Metrics — all require llm; AnswerRelevancy also needs embeddings
-        metrics: List[Any] = [
-            ContextPrecision(llm=llm),
-            Faithfulness(llm=llm),
-        ]
+        # Metrics — ragas 0.4.3 requires Metric instances accepted by evaluate()
+        metrics: List[Any] = [context_precision, faithfulness]
         if reference is not None:
-            metrics.append(ContextRecall(llm=llm))
+            metrics.append(context_recall)
 
-        # AnswerRelevancy: best-effort, requires embeddings
-        try:
-            embeddings = self._build_embeddings_v04()
-            if embeddings is not None:
-                metrics.append(AnswerRelevancy(llm=llm, embeddings=embeddings))
-        except Exception:
-            logger.debug(
-                "Skipping AnswerRelevancy: could not configure embeddings.",
-                exc_info=True,
-            )
-
+        # Run core metrics first. Keep answer_relevancy isolated so any
+        # embeddings/provider failure does not null out all metrics.
         try:
             ragas_result = ragas_evaluate(
                 dataset=dataset,
                 metrics=metrics,
+                llm=llm,
                 raise_exceptions=False,
                 show_progress=False,
             )
             row = ragas_result.to_pandas().iloc[0].to_dict()
-            for key in self.METRIC_KEYS:
+            for key in ["context_precision", "context_recall", "faithfulness"]:
                 val = row.get(key)
                 if val is not None:
                     try:
@@ -239,7 +235,39 @@ class RagasScorer:
                     except (TypeError, ValueError):
                         pass
         except Exception:
-            logger.error("RAGAS 0.4.x evaluation failed", exc_info=True)
+            logger.error("RAGAS 0.4.x core metrics failed", exc_info=True)
+
+        # AnswerRelevancy (best-effort)
+        try:
+            embeddings = self._build_embeddings_v04()
+            if (
+                embeddings is not None
+                and hasattr(embeddings, "embed_query")
+                and hasattr(embeddings, "embed_documents")
+            ):
+                ragas_result = ragas_evaluate(
+                    dataset=dataset,
+                    metrics=[answer_relevancy],
+                    llm=llm,
+                    embeddings=embeddings,
+                    raise_exceptions=False,
+                    show_progress=False,
+                )
+                row = ragas_result.to_pandas().iloc[0].to_dict()
+                val = row.get("answer_relevancy")
+                if val is not None:
+                    fval = float(val)
+                    if not math.isnan(fval):
+                        results["answer_relevancy"] = round(fval, 4)
+            else:
+                logger.info(
+                    "Skipping AnswerRelevancy: compatible embeddings are not configured."
+                )
+        except Exception:
+            logger.warning(
+                "AnswerRelevancy failed; returning None for this metric only.",
+                exc_info=True,
+            )
 
         return results
 
@@ -256,10 +284,12 @@ class RagasScorer:
             from ragas.llms import LiteLLMStructuredLLM
 
             client = instructor.from_litellm(litellm.completion)
-            provider, model_name = _parse_model_string(self.model)
+            provider, _ = _parse_model_string(self.model)
             return LiteLLMStructuredLLM(
                 client=client,
-                model=model_name,
+                # Keep full model string (e.g. gemini/gemini-2.0-flash)
+                # to preserve LiteLLM provider routing behavior.
+                model=self.model,
                 provider=provider,
             )
         except Exception:

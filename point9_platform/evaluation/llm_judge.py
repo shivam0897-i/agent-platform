@@ -45,6 +45,7 @@ IMPORTANT NOTES:
 import json
 import logging
 import re
+import time
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,8 @@ class LLMJudge:
         model: Optional[str] = None,
         consistency_runs: int = 3,
         timeout: int = 60,
+        retry_attempts: int = 3,
+        retry_base_delay: float = 1.5,
     ):
         """
         Initialize LLM Judge.
@@ -82,10 +85,14 @@ class LLMJudge:
             consistency_runs: Number of independent LLM calls for
                 self-consistency (default 3).
             timeout: Per-call timeout in seconds.
+            retry_attempts: Retry attempts for transient rate-limit errors.
+            retry_base_delay: Base delay in seconds for exponential backoff.
         """
         self.model = model or self._default_model()
         self.consistency_runs = consistency_runs
         self.timeout = timeout
+        self.retry_attempts = max(1, retry_attempts)
+        self.retry_base_delay = max(0.1, retry_base_delay)
 
     # ==================== Public API ====================
 
@@ -181,12 +188,10 @@ Be concise (1-3 sentences).
 """
         for i in range(self.consistency_runs):
             try:
-                resp = litellm.completion(
-                    model=self.model,
+                resp = self._completion_with_retry(
                     messages=[{"role": "user", "content": answer_prompt}],
-                    temperature=0.7,  # intentional variance
+                    temperature=0.7,
                     max_tokens=300,
-                    timeout=self.timeout,
                 )
                 text = resp.choices[0].message.content.strip()
                 if text:
@@ -251,8 +256,7 @@ Return ONLY a JSON object: {{"score": <float 0-1>, "reason": "<one sentence>"}}
             return None
 
         try:
-            resp = litellm.completion(
-                model=self.model,
+            resp = self._completion_with_retry(
                 messages=[
                     {
                         "role": "system",
@@ -265,7 +269,6 @@ Return ONLY a JSON object: {{"score": <float 0-1>, "reason": "<one sentence>"}}
                 ],
                 temperature=0.0,
                 max_tokens=200,
-                timeout=self.timeout,
             )
             raw = resp.choices[0].message.content.strip()
             return self._parse_score(raw)
@@ -301,6 +304,52 @@ Return ONLY a JSON object: {{"score": <float 0-1>, "reason": "<one sentence>"}}
         if not context:
             return "(no context provided)"
         return "\n".join(f"[{i+1}] {c}" for i, c in enumerate(context))
+
+    def _completion_with_retry(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ):
+        """Call litellm.completion with retry on transient rate limits."""
+        try:
+            import litellm
+        except ImportError:
+            logger.warning("litellm not installed — skipping LLM judge call.")
+            raise
+
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self.retry_attempts + 1):
+            try:
+                return litellm.completion(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout=self.timeout,
+                )
+            except Exception as exc:
+                last_exc = exc
+                text = str(exc)
+                is_rate_limit = (
+                    "429" in text
+                    or "RateLimitError" in text
+                    or "RESOURCE_EXHAUSTED" in text
+                )
+                if not is_rate_limit or attempt >= self.retry_attempts:
+                    raise
+
+                sleep_s = self.retry_base_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    "LLM rate-limited (attempt %d/%d). Retrying in %.1fs...",
+                    attempt,
+                    self.retry_attempts,
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
+
+        # Should be unreachable, but keeps type checkers happy.
+        raise last_exc if last_exc is not None else RuntimeError("Unknown LLM error")
 
     def _empty_results(self) -> Dict[str, Optional[float]]:
         return {k: None for k in self.METRIC_KEYS}

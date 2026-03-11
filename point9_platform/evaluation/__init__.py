@@ -33,7 +33,7 @@ Usage:
 IMPORTANT NOTES:
     - All eval dependencies are optional. Install with:
           pip install "point9-agent-platform[eval]"
-    - RAGAS is pinned to >=0.1.0,<0.3.0 due to breaking API changes.
+    - RAGAS is pinned to >=0.4.0,<1.0.0 (updated for new API).
     - BERTScore downloads ~260MB model on first use. Pre-download in
       Docker to avoid cold-start latency.
     - LLMJudge makes N+2 LLM calls per evaluation (default 6 total).
